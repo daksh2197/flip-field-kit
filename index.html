@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Max-bid calculator and pick-and-pull parts margin checker for people who flip auction finds and car parts in Canada.">
+<title>Flip Field Kit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one working column. Mode switch (Auction / Parts), a calculator whose answer sits on top, then the flip log. */
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --ink:#18202a; --muted:#5a6675; --line:#d6dde4; --chip:#e4e9ee;
+  --accent:#b9770e; --accent-ink:#ffffff; --tag:#fff4dc;
+  --good:#1d7a48; --warn:#a4620c; --bad:#b0322a;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#11161c; --panel:#19212a; --ink:#e7ecf1; --muted:#98a5b3; --line:#2b3643; --chip:#232e3a;
+  --accent:#e8a83e; --accent-ink:#1c1303; --tag:#2c2414; --good:#5cc98d; --warn:#e3a54a; --bad:#ef7a72; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161c; --panel:#19212a; --ink:#e7ecf1; --muted:#98a5b3; --line:#2b3643; --chip:#232e3a;
+  --accent:#e8a83e; --accent-ink:#1c1303; --tag:#2c2414; --good:#5cc98d; --warn:#e3a54a; --bad:#ef7a72; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:900px;margin:0 auto;padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:26px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:.01em}
+h1{font-size:clamp(34px,7vw,48px);line-height:1;text-transform:uppercase}
+h2{font-size:24px;text-transform:uppercase}
+h3{font-size:18px}
+p{margin:0}
+.muted{color:var(--muted)} .small{font-size:13px}
+.label{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+header{display:grid;gap:8px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{font:600 15px var(--body);border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 16px;border-radius:999px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+section{display:grid;gap:14px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+label{display:grid;gap:4px;font-size:13px;color:var(--muted);font-weight:500}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;min-width:0;width:100%;box-sizing:border-box}
+input[type=checkbox]{width:auto}
+.check{display:flex;gap:8px;align-items:center;color:var(--ink)}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button{font:600 14px var(--body);border-radius:6px;padding:8px 14px;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:disabled{opacity:.55;cursor:default}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+/* The answer: styled like an auction lot tag */
+.tagcard{background:var(--tag);border:1px dashed var(--accent);border-radius:10px;padding:16px 18px;display:grid;gap:6px}
+.big{font-family:var(--mono);font-size:clamp(30px,8vw,44px);font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.breakdown{display:grid;grid-template-columns:1fr auto;gap:2px 16px;font-size:13.5px}
+.breakdown .num{text-align:right}
+.breakdown .tot{border-top:1px solid var(--line);padding-top:4px;font-weight:600}
+.pill{display:inline-block;font:600 12px var(--body);padding:2px 9px;border-radius:999px;background:var(--chip);color:var(--ink)}
+.pill.good{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.pill.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.pill.bad{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
+.links{display:flex;gap:8px;flex-wrap:wrap}
+.links a{font-size:13.5px;color:var(--ink);text-decoration:none;border:1px solid var(--line);background:var(--panel);padding:6px 10px;border-radius:6px}
+.links a:hover{border-color:var(--accent)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+td.num,th.num{text-align:right}
+td input,td select{padding:5px 7px}
+#pRows td:first-child input{min-width:170px}
+.empty{padding:18px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:8px}
+.note{font-size:13px;color:var(--muted);border-left:3px solid var(--line);padding-left:10px}
+.err{color:var(--bad);font-size:13px}
+.totals{display:flex;gap:18px;flex-wrap:wrap}
+.totals div{display:grid}
+@media (prefers-reduced-motion:no-preference){.tab,button{transition:background .15s,border-color .15s}}
+</style>
+<style>:root{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <span class="label">v1 · Nov 2026 · free, no sign-up</span>
+    <h1>Flip Field Kit</h1>
+    <p class="muted">Know your walk-away price before the auctioneer or the yard does. Type what it really sells for, the costs to get it there, and the profit you want. The kit tells you the most you should pay.</p>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tabAuction" aria-selected="true">Auction max bid</button>
+      <button class="tab" role="tab" id="tabParts" aria-selected="false">Pick-and-pull parts</button>
+    </div>
+  </header>
+
+  <!-- AUCTION MODE -->
+  <section id="auction">
+    <div class="tagcard" aria-live="polite">
+      <span class="label">Walk-away bid (hammer price)</span>
+      <div class="big" id="aOut">$0</div>
+      <p class="small" id="aSub">Fill in the resale price to get a number.</p>
+    </div>
+
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <h3>The lot</h3>
+        <button id="aExample">Load example numbers</button>
+      </div>
+      <div class="grid">
+        <label>Item<input id="aItem" placeholder="e.g. Snap-on tool chest"></label>
+        <label>Sold comps, $ (space between each)<input id="aComps" inputmode="decimal" placeholder="e.g. 420 460 390"></label>
+        <label>Or resale price you expect, $<input id="aResale" inputmode="decimal" placeholder="used if no comps"></label>
+      </div>
+      <p class="small muted" id="aCompsNote">With comps, the kit uses the median, so one lucky sale doesn't set your price.</p>
+      <div class="links" id="aLinks"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Costs to buy</h3>
+      <div class="grid">
+        <label>Buyer's premium, %<input id="aPrem" inputmode="decimal" placeholder="from the auction's terms"></label>
+        <label class="check"><input type="checkbox" id="aGst" checked> GST 5% on hammer + premium</label>
+        <label>Haul / pickup, $<input id="aHaul" inputmode="decimal" placeholder="0"></label>
+        <label>Repairs and cleanup, $<input id="aRepair" inputmode="decimal" placeholder="0"></label>
+      </div>
+      <h3>Costs to sell</h3>
+      <div class="grid">
+        <label>Platform fee, % of sale<input id="aFee" inputmode="decimal" placeholder="from the platform's fee page"></label>
+        <label>Fixed fee per order, $<input id="aFixed" inputmode="decimal" placeholder="0"></label>
+        <label>Shipping you pay, $<input id="aShip" inputmode="decimal" placeholder="0 for local pickup"></label>
+      </div>
+      <h3>What it has to pay you</h3>
+      <div class="grid">
+        <label>Profit you want, $<input id="aProfit" inputmode="decimal" placeholder="e.g. 100"></label>
+        <label>Hours it will take<input id="aHours" inputmode="decimal" placeholder="0"></label>
+        <label>$ per hour for your time<input id="aRate" inputmode="decimal" placeholder="0"></label>
+      </div>
+      <p class="note">Fees and premiums change by auction and platform, so the kit never guesses them. Check the auction's terms and the platform's current fee page, then type them in.</p>
+    </div>
+
+    <div class="panel">
+      <h3>How the number is built</h3>
+      <div class="breakdown" id="aBreak"></div>
+      <div class="row">
+        <button class="primary" id="aSave">Save to flip log</button>
+        <span class="small muted" id="aSaveMsg"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- PARTS MODE -->
+  <section id="parts" hidden>
+    <div class="tagcard" aria-live="polite">
+      <span class="label">This yard trip</span>
+      <div class="big" id="pOut">$0</div>
+      <p class="small" id="pSub">Add the parts you plan to pull.</p>
+    </div>
+
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <h3>Trip settings</h3>
+        <button id="pExample">Load example numbers</button>
+      </div>
+      <div class="grid">
+        <label>Yard entry fee, $<input id="pEntry" inputmode="decimal" placeholder="from the yard's sign"></label>
+        <label class="check"><input type="checkbox" id="pGst" checked> GST 5% on yard prices</label>
+        <label>Platform fee, % of sale<input id="pFee" inputmode="decimal" placeholder="from the platform's fee page"></label>
+        <label>Minimum profit per part, $<input id="pMin" inputmode="decimal" placeholder="e.g. 25"></label>
+      </div>
+      <div class="links">
+        <a href="https://www.google.com/search?q=pick+n+pull+calgary+price+list" target="_blank" rel="noopener">Calgary yard price lists</a>
+        <a href="https://www.google.com/search?q=u-pull+auto+parts+calgary+inventory" target="_blank" rel="noopener">Calgary yard inventory</a>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Parts list</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Part (and car)</th><th class="num">Yard price</th><th class="num">Sells for</th><th class="num">Ship</th><th class="num">Profit</th><th>Call</th><th></th></tr></thead>
+          <tbody id="pRows"></tbody>
+        </table>
+      </div>
+      <div class="row"><button id="pAdd">Add a part</button><span class="small muted">Tap a part's comps link to check what it really sold for.</span></div>
+      <div class="links" id="pLinks"></div>
+      <div class="row">
+        <button class="primary" id="pSave">Save trip to flip log</button>
+        <span class="small muted" id="pSaveMsg"></span>
+      </div>
+      <p class="note">Some pick-and-pull yards charge a core deposit on parts like alternators and starters. Add it to the yard price if yours does.</p>
+    </div>
+  </section>
+
+  <!-- LOG -->
+  <section>
+    <div class="row" style="justify-content:space-between">
+      <h2>Flip log</h2>
+      <span class="small muted" id="logState">Connecting…</span>
+    </div>
+    <div class="totals panel" id="totals"></div>
+    <div class="panel">
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>Item</th><th>Type</th><th class="num">Max pay</th><th class="num">Paid</th><th class="num">Sold for</th><th>Status</th><th class="num">Real profit</th><th></th></tr></thead>
+          <tbody id="logRows"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="logEmpty">No flips yet. Run the numbers above and tap Save. Then fill in what you paid and what it sold for, and the log shows your real profit.</div>
+      <p class="small muted">Real profit = sold for − fees you set when saving − what you paid − its other costs. The log stays in this browser; nothing is sent anywhere.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const money = v => (v < 0 ? "−$" : "$") + Math.abs(v).toLocaleString("en-CA", {maximumFractionDigits: 0});
+  const money2 = v => (v < 0 ? "−$" : "$") + Math.abs(v).toLocaleString("en-CA", {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  // Accept "1,234.56", "1234,56" and "$1 234"
+  function num(s){
+    if (s == null) return null; s = String(s).trim().replace(/[$\s]/g, "");
+    if (!s) return null;
+    if (/,\d{1,2}$/.test(s) && !/\.\d/.test(s)) s = s.replace(/\./g, "").replace(",", ".");
+    else s = s.replace(/,/g, "");
+    const n = Number(s); return Number.isFinite(n) ? n : NaN;
+  }
+  const v0 = id => { const n = num($(id).value); return n == null || isNaN(n) ? 0 : n; };
+  const median = a => { const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  const GST = 0.05; // Alberta: GST only, no provincial sales tax
+  const enc = encodeURIComponent;
+  const compLinks = q => q ? [
+    ["eBay sold (Canada)", "https://www.ebay.ca/sch/i.html?_nkw=" + enc(q) + "&LH_Sold=1&LH_Complete=1"],
+    ["Marketplace Calgary", "https://www.facebook.com/marketplace/calgary/search?query=" + enc(q)],
+    ["Kijiji Calgary", "https://www.kijiji.ca/b-calgary/" + enc(q).replace(/%20/g, "-") + "/k0l1700199"],
+    ["GCSurplus auctions", "https://www.gcsurplus.ca/"]
+  ] : [["GCSurplus auctions", "https://www.gcsurplus.ca/"]];
+  const renderLinks = (el, q) => { el.innerHTML = ""; compLinks(q).forEach(([t, h]) => { const a = document.createElement("a"); a.href = h; a.target = "_blank"; a.rel = "noopener"; a.textContent = t + (q && !t.startsWith("GC") ? " ↗" : ""); el.appendChild(a); }); };
+
+  /* ---------- Auction maths (pure) ---------- */
+  function auctionMax(i){
+    // profit = resale*(1-fee) - fixed - ship - bid*(1+prem)*(1+tax) - haul - repair
+    const net = i.resale * (1 - i.fee / 100) - i.fixed - i.ship;
+    const target = i.profit + i.hours * i.rate;
+    const mult = (1 + i.prem / 100) * (1 + (i.gst ? GST : 0));
+    const bid = (net - i.haul - i.repair - target) / mult;
+    return {net, target, mult, bid, allIn: bid * mult};
+  }
+  window.__ffk = {auctionMax, num, median}; // exposed for a quick self-check
+
+  function readAuction(){
+    const raw = $("aComps").value.trim();
+    const list = raw ? raw.split(/[;\n]+|,\s+|\s+/).map(num).filter(n => n != null && !isNaN(n) && n > 0) : [];
+    const resale = list.length ? median(list) : v0("aResale");
+    return {item: $("aItem").value.trim(), comps: list, resale, fee: v0("aFee"), fixed: v0("aFixed"), ship: v0("aShip"),
+      prem: v0("aPrem"), gst: $("aGst").checked, haul: v0("aHaul"), repair: v0("aRepair"), profit: v0("aProfit"), hours: v0("aHours"), rate: v0("aRate")};
+  }
+  let lastAuction = null;
+  function renderAuction(){
+    const i = readAuction(), r = auctionMax(i);
+    lastAuction = {i, r};
+    const b = $("aBreak"); b.innerHTML = "";
+    const line = (k, v, cls) => { const a = document.createElement("span"); a.textContent = k; const c = document.createElement("span"); c.className = "num" + (cls ? " " + cls : ""); c.textContent = v; if (cls) a.className = cls; b.append(a, c); };
+    if (!i.resale){ $("aOut").textContent = "$0"; $("aSub").textContent = "Fill in sold comps or the resale price to get a number."; line("Resale price", "—"); renderLinks($("aLinks"), i.item); return; }
+    line(i.comps.length ? `Resale (median of ${i.comps.length} comp${i.comps.length > 1 ? "s" : ""})` : "Resale price", money2(i.resale));
+    line(`Platform fee ${i.fee}%`, "−" + money2(i.resale * i.fee / 100));
+    if (i.fixed) line("Fixed fee", "−" + money2(i.fixed));
+    if (i.ship) line("Shipping", "−" + money2(i.ship));
+    if (i.haul) line("Haul / pickup", "−" + money2(i.haul));
+    if (i.repair) line("Repairs and cleanup", "−" + money2(i.repair));
+    line("Profit you want", "−" + money2(i.profit));
+    if (i.hours && i.rate) line(`Your time (${i.hours} h × ${money(i.rate)})`, "−" + money2(i.hours * i.rate));
+    line(`Left for hammer + ${i.prem}% premium${i.gst ? " + GST" : ""}`, money2(r.allIn), "tot");
+    line(`÷ ${r.mult.toFixed(4)} = walk-away bid`, money2(Math.max(0, r.bid)), "tot");
+    if (r.bid <= 0){
+      $("aOut").textContent = "Pass";
+      $("aSub").innerHTML = ""; const s = document.createElement("span"); s.className = "pill bad"; s.textContent = "No bid makes your profit";
+      $("aSub").append(s, document.createTextNode(` Costs and target are ${money(-r.bid * r.mult)} more than the sale brings in.`));
+    } else {
+      $("aOut").textContent = money(Math.floor(r.bid));
+      $("aSub").textContent = `Stop bidding at ${money(Math.floor(r.bid))}. All-in at the till: ${money2(r.allIn)}. At that bid you clear ${money(i.profit)}${i.hours && i.rate ? " plus " + money(i.hours * i.rate) + " for your time" : ""}.`;
+    }
+    renderLinks($("aLinks"), i.item);
+  }
+  ["aItem","aComps","aResale","aPrem","aGst","aHaul","aRepair","aFee","aFixed","aShip","aProfit","aHours","aRate"].forEach(id => $(id).addEventListener("input", renderAuction));
+  $("aExample").addEventListener("click", () => {
+    const ex = {aItem:"Example: Milwaukee M18 combo kit", aComps:"340, 365, 310, 395", aResale:"", aPrem:"15", aHaul:"0", aRepair:"20", aFee:"13", aFixed:"0.40", aShip:"0", aProfit:"80", aHours:"2", aRate:"20"};
+    Object.entries(ex).forEach(([k, v]) => $(k).value = v);
+    renderAuction();
+    $("aSaveMsg").textContent = "Example numbers, not real fees or prices. Replace them before you bid.";
+  });
+
+  /* ---------- Parts mode ---------- */
+  let parts = [];
+  function readPartsCfg(){ return {entry: v0("pEntry"), gst: $("pGst").checked, fee: v0("pFee"), min: v0("pMin")}; }
+  function partProfit(p, c){ return p.sells * (1 - c.fee / 100) - p.ship - p.yard * (1 + (c.gst ? GST : 0)); }
+  function renderParts(){
+    const c = readPartsCfg(), tb = $("pRows"); tb.innerHTML = "";
+    let total = 0, pulls = 0;
+    parts.forEach((p, idx) => {
+      const tr = document.createElement("tr");
+      const cell = (key, ph, isNum) => { const td = document.createElement("td"); if (isNum) td.className = "num"; const inp = document.createElement("input"); inp.value = p[key + "Raw"] ?? ""; inp.placeholder = ph; inp.id = "p" + key + idx; if (isNum) { inp.inputMode = "decimal"; inp.style.width = "90px"; } inp.addEventListener("input", () => { p[key + "Raw"] = inp.value; if (isNum){ const n = num(inp.value); p[key] = n == null || isNaN(n) ? 0 : n; } else p[key] = inp.value; renderPartsTotals(); }); td.appendChild(inp); return td; };
+      tr.append(cell("name", "e.g. Mirror, 2008 Civic", false), cell("yard", "0", true), cell("sells", "0", true), cell("ship", "0", true));
+      const prof = document.createElement("td"); prof.className = "num"; prof.id = "pprof" + idx;
+      const call = document.createElement("td"); call.id = "pcall" + idx;
+      const del = document.createElement("td"); const x = document.createElement("button"); x.textContent = "Remove"; x.addEventListener("click", () => { parts.splice(idx, 1); renderParts(); }); del.appendChild(x);
+      tr.append(prof, call, del); tb.appendChild(tr);
+    });
+    renderPartsTotals();
+  }
+  function renderPartsTotals(){
+    const c = readPartsCfg(); let total = 0, pulls = 0, net = 0;
+    parts.forEach((p, idx) => {
+      const pr = partProfit(p, c), el = $("pprof" + idx), call = $("pcall" + idx);
+      if (!el) return;
+      el.textContent = p.sells ? money2(pr) : "—";
+      call.innerHTML = "";
+      if (p.sells){
+        const s = document.createElement("span");
+        const ok = pr >= (c.min || 0.01);
+        s.className = "pill " + (ok ? "good" : pr > 0 ? "warn" : "bad");
+        s.textContent = ok ? "Pull it" : pr > 0 ? "Thin" : "Skip";
+        call.appendChild(s);
+        if (ok){ pulls++; net += pr; }
+      }
+    });
+    total = net - c.entry;
+    $("pOut").textContent = parts.length ? money(total) : "$0";
+    $("pSub").textContent = parts.length ? `${pulls} of ${parts.length} part${parts.length > 1 ? "s" : ""} clear your ${money(c.min)} minimum. Profit from those, after the ${money(c.entry)} entry fee: ${money2(total)}.` : "Add the parts you plan to pull.";
+    const names = [...new Set(parts.map(p => (p.name || "").trim()).filter(Boolean))].slice(0, 6);
+    const pl = $("pLinks"); pl.innerHTML = "";
+    names.forEach(n => { const a = document.createElement("a"); a.href = "https://www.ebay.ca/sch/i.html?_nkw=" + enc(n) + "&LH_Sold=1&LH_Complete=1"; a.target = "_blank"; a.rel = "noopener"; a.textContent = "eBay sold: " + n + " ↗"; pl.appendChild(a); });
+    lastParts = {c, total, pulls};
+  }
+  let lastParts = null;
+  ["pEntry","pGst","pFee","pMin"].forEach(id => $(id).addEventListener("input", renderPartsTotals));
+  $("pAdd").addEventListener("click", () => { parts.push({name:"", yard:0, sells:0, ship:0}); renderParts(); const i = $("pname" + (parts.length - 1)); if (i) i.focus(); });
+  $("pExample").addEventListener("click", () => {
+    $("pEntry").value = "3"; $("pFee").value = "13"; $("pMin").value = "25";
+    parts = [
+      {name:"Example: tail light, 2010 Mazda3", yard:25, sells:85, ship:18},
+      {name:"Example: side mirror, 2008 Civic", yard:30, sells:55, ship:15},
+      {name:"Example: ECU, 2006 Eclipse GT", yard:45, sells:160, ship:14}
+    ].map(p => ({...p, nameRaw:p.name, yardRaw:String(p.yard), sellsRaw:String(p.sells), shipRaw:String(p.ship)}));
+    renderParts();
+    $("pSaveMsg").textContent = "Example numbers, not real yard or eBay prices.";
+  });
+
+  /* ---------- Tabs ---------- */
+  function setTab(t){
+    $("auction").hidden = t !== "auction"; $("parts").hidden = t !== "parts";
+    $("tabAuction").setAttribute("aria-selected", t === "auction"); $("tabParts").setAttribute("aria-selected", t === "parts");
+    try { localStorage.setItem("ffk-tab", t); } catch(_){}
+  }
+  $("tabAuction").addEventListener("click", () => setTab("auction"));
+  $("tabParts").addEventListener("click", () => setTab("parts"));
+  try { if (localStorage.getItem("ffk-tab") === "parts") setTab("parts"); } catch(_){}
+
+  /* ---------- Flip log (db) ---------- */
+  let db = null, rows = [];
+  const STATUS = ["watching","bid","won","listed","sold","pass"];
+  async function write(fn){ if (!db) return false; try { await fn(); return true; } catch(e){ $("logState").textContent = e && e.code === "quota_exceeded" ? "The log is full. Delete old rows to add more." : "Couldn't save. Try again."; return false; } }
+  function realProfit(r){ if (r.soldFor == null || r.paid == null) return null; return r.soldFor * (1 - (r.feePct || 0) / 100) - (r.sellCosts || 0) - r.paid - (r.otherCosts || 0); }
+  function renderLog(){
+    const tb = $("logRows"); tb.innerHTML = "";
+    $("logEmpty").hidden = rows.length > 0;
+    const sorted = [...rows].sort((a, b) => String(b.added).localeCompare(String(a.added)));
+    let sold = 0, sum = 0, open = 0;
+    sorted.forEach(r => {
+      const tr = document.createElement("tr");
+      const td = (txt, cls) => { const c = document.createElement("td"); if (cls) c.className = cls; c.textContent = txt; return c; };
+      tr.append(td(r.item || "(no name)"), td(r.mode === "parts" ? "Parts trip" : "Auction"), td(r.maxPay != null ? money(r.maxPay) : "—", "num"));
+      const edit = (key) => { const c = document.createElement("td"); c.className = "num"; const i = document.createElement("input"); i.id = key + "-" + r.id; i.inputMode = "decimal"; i.style.width = "90px"; i.value = r[key] ?? ""; i.placeholder = "—";
+        i.addEventListener("change", () => { const n = num(i.value); const val = n == null || isNaN(n) ? null : n; if (val === (r[key] ?? null)) return; write(() => db.doc("flips/" + r.id).update({[key]: val, updated: new Date().toISOString()})); }); c.appendChild(i); return c; };
+      tr.append(edit("paid"), edit("soldFor"));
+      const sc = document.createElement("td"); const sel = document.createElement("select"); sel.id = "st-" + r.id;
+      STATUS.forEach(s => { const o = document.createElement("option"); o.value = s; o.textContent = s[0].toUpperCase() + s.slice(1); sel.appendChild(o); });
+      sel.value = r.status || "watching";
+      sel.addEventListener("change", () => write(() => db.doc("flips/" + r.id).update({status: sel.value, updated: new Date().toISOString()})));
+      sc.appendChild(sel); tr.appendChild(sc);
+      const rp = realProfit(r); const pc = td(rp == null ? "—" : money2(rp), "num"); if (rp != null) pc.style.color = rp >= 0 ? "var(--good)" : "var(--bad)"; tr.appendChild(pc);
+      const dc = document.createElement("td"); const del = document.createElement("button"); del.textContent = "Delete";
+      del.addEventListener("click", () => { if (del.dataset.armed){ write(() => db.doc("flips/" + r.id).delete()); return; } del.dataset.armed = "1"; del.textContent = "Tap again"; setTimeout(() => { delete del.dataset.armed; del.textContent = "Delete"; }, 3000); });
+      dc.appendChild(del); tr.appendChild(dc);
+      tb.appendChild(tr);
+      if (rp != null && r.status === "sold"){ sold++; sum += rp; }
+      if (!["sold","pass"].includes(r.status)) open++;
+    });
+    const t = $("totals"); t.innerHTML = "";
+    [["Flips logged", String(rows.length)], ["Still open", String(open)], ["Sold", String(sold)], ["Real profit on sold", money2(sum)]].forEach(([k, v]) => { const d = document.createElement("div"); const a = document.createElement("span"); a.className = "label"; a.textContent = k; const b = document.createElement("span"); b.className = "num"; b.style.fontSize = "20px"; b.style.fontWeight = "600"; b.textContent = v; d.append(a, b); t.appendChild(d); });
+  }
+  $("aSave").addEventListener("click", async () => {
+    const L = lastAuction; if (!L || !L.i.resale || L.r.bid <= 0){ $("aSaveMsg").textContent = "Get a walk-away bid first."; return; }
+    if (!db){ $("aSaveMsg").textContent = "The log isn't available in this view."; return; }
+    const i = L.i;
+    const doc = {mode:"auction", item: i.item || "Auction lot", maxPay: Math.floor(L.r.bid), resale: i.resale, comps: i.comps, feePct: i.fee,
+      sellCosts: i.fixed + i.ship, otherCosts: i.haul + i.repair, premPct: i.prem, gst: i.gst, paid: null, soldFor: null, status: "watching", notes: "", added: new Date().toISOString()};
+    $("aSave").disabled = true; const ok = await write(() => db.collection("flips").add(doc)); $("aSave").disabled = false;
+    if (ok){ $("aSaveMsg").textContent = "Saved to the log. When you win, type what you paid (hammer + premium + GST)."; }
+  });
+  $("pSave").addEventListener("click", async () => {
+    const L = lastParts; if (!L || !parts.length){ $("pSaveMsg").textContent = "Add a part first."; return; }
+    if (!db){ $("pSaveMsg").textContent = "The log isn't available in this view."; return; }
+    const c = L.c, keep = parts.filter(p => p.sells && partProfit(p, c) >= (c.min || 0.01));
+    if (!keep.length){ $("pSaveMsg").textContent = "No part clears your minimum, so there's nothing worth saving."; return; }
+    const yard = keep.reduce((s, p) => s + p.yard * (1 + (c.gst ? GST : 0)), 0);
+    const doc = {mode:"parts", item: "Yard trip: " + keep.map(p => p.name || "part").join(", ").slice(0, 160),
+      parts: keep.map(p => ({name: p.name, yard: p.yard, sells: p.sells, ship: p.ship})),
+      maxPay: Math.round(yard + c.entry), resale: keep.reduce((s, p) => s + p.sells, 0), feePct: c.fee, sellCosts: keep.reduce((s, p) => s + p.ship, 0), otherCosts: 0,
+      paid: null, soldFor: null, status: "watching", notes: "", added: new Date().toISOString()};
+    $("pSave").disabled = true; const ok = await write(() => db.collection("flips").add(doc)); $("pSave").disabled = false;
+    if (ok) $("pSaveMsg").textContent = `Saved ${keep.length} part${keep.length > 1 ? "s" : ""}. Type the yard receipt total under Paid and the sales total under Sold for.`;
+  });
+
+  // Standalone build: the flip log lives in this browser only (localStorage).
+  function localStore(key){
+    const read = () => { try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch(_) { return {}; } };
+    const listeners = [];
+    const emit = () => { const all = read(); const docs = Object.entries(all).map(([id, d]) => ({id, data: () => d})); listeners.forEach(fn => fn({docs, metadata: {fromCache: false}})); };
+    const save = all => { localStorage.setItem(key, JSON.stringify(all)); emit(); };
+    const id = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    return {
+      collection: () => ({
+        add: async d => { const all = read(); all[id()] = d; save(all); },
+        onSnapshot: fn => { listeners.push(fn); emit(); return () => {}; }
+      }),
+      doc: path => { const k = path.split("/")[1]; return {
+        update: async d => { const all = read(); if (!all[k]) throw {code: "invalid_argument"}; all[k] = Object.assign({}, all[k], d); save(all); },
+        delete: async () => { const all = read(); delete all[k]; save(all); }
+      }; }
+    };
+  }
+  renderAuction(); renderParts(); renderLog();
+  try {
+    localStorage.setItem("ffk-probe", "1"); localStorage.removeItem("ffk-probe");
+    db = localStore("ffk-flips");
+    db.collection("flips").onSnapshot(s => { rows = s.docs.map(d => Object.assign({id: d.id}, d.data())); renderLog(); $("logState").textContent = "Saved in this browser only"; });
+  } catch(_) { $("logState").textContent = "This browser blocks saving, so the log is off. The calculators still work."; }
+})();
+</script>
+
+</body>
+</html>
